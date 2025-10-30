@@ -1,0 +1,38 @@
+name: Check dependencies
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # weekly (Mon 06:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  outdated:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - run: npm ci
+      - name: Show outdated
+        run: npm outdated || true
+      - name: Create issue if outdated found
+        if: ${{ always() }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            try {
+              const out = execSync('npm outdated --json', { encoding: 'utf8' });
+              const data = JSON.parse(out || '{}');
+              if (Object.keys(data).length > 0) {
+                github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: 'Dependency updates available',
+                  body: 'Some dependencies are outdated. Dependabot will open PRs, check tests.'
+                });
+              }
+            } catch (e) {
+              console.log('No outdated deps or parsing failed: ', e.message);
+            }

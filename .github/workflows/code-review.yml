@@ -1,0 +1,38 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  pr-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: |
+          if npm run | grep -q "lint"; then npm run lint; else echo "No lint configured"; fi
+
+      - name: npm audit
+        run: npm audit --audit-level=moderate || true
+
+      - name: Run security scan (npm audit + snyk if you want)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if [ -n "${SNYK_TOKEN}" ]; then
+            npm i -g snyk
+            snyk auth ${SNYK_TOKEN}
+            snyk test || true
+          else
+            echo "SNYK_TOKEN not set; skipping snyk"
+          fi
