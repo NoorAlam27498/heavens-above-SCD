@@ -6,7 +6,7 @@
   "main": "run.js",
   "scripts": {
     "start": "node run.js",
-    "build": "node build-script-if-any.js",
+    "build": "echo 'No build step needed'",
     "lint": "eslint . || true",
     "test": "echo \"no tests\" && exit 0"
   },
