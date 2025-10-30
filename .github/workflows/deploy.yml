@@ -1,0 +1,43 @@
+name: Deploy to AWS Elastic Beanstalk
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run build (if available)
+        run: |
+          if (Test-Path package.json) {
+            if ((Get-Content package.json) -match '"build"') { npm run build }
+            else { Write-Output "No build step found." }
+          }
+
+      - name: Zip application
+        run: powershell Compress-Archive -Path * -DestinationPath app.zip -Force
+
+      - name: Deploy to Elastic Beanstalk
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          region: ${{ secrets.AWS_REGION }}
+          application_name: ${{ secrets.AWS_APP_NAME }}
+          environment_name: ${{ secrets.AWS_ENV_NAME }}
+          version_label: v${{ github.run_number }}
+          deployment_package: app.zip
