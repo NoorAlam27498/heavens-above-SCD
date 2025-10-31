@@ -1,38 +1,60 @@
-name: PR Checks
+name: Code Review Workflow
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: # Manual trigger from the Actions tab
 
 jobs:
-  pr-checks:
+  code-review:
+    name: Lint, Test, and Audit Code
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Setup Node
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: "20"
+          cache: "npm"
 
-      - name: Install
+      - name: Install dependencies
         run: npm ci
 
-      - name: Lint
+      - name: Run ESLint
         run: |
-          if npm run | grep -q "lint"; then npm run lint; else echo "No lint configured"; fi
+          if [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ]; then
+            npx eslint . --ext .js,.mjs,.cjs
+          else
+            echo "No ESLint configuration found, skipping lint step."
+          fi
 
-      - name: npm audit
+      - name: Run tests
+        run: |
+          if [ -f "package.json" ] && grep -q "\"test\"" package.json; then
+            npm test
+          else
+            echo " No test script found, skipping test step."
+          fi
+
+      - name: Run security audit
         run: npm audit --audit-level=moderate || true
 
-      - name: Run security scan (npm audit + snyk if you want)
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: |
-          if [ -n "${SNYK_TOKEN}" ]; then
-            npm i -g snyk
-            snyk auth ${SNYK_TOKEN}
-            snyk test || true
-          else
-            echo "SNYK_TOKEN not set; skipping snyk"
-          fi
+      - name: Check code quality with CodeQL (optional)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+      - uses: github/codeql-action/analyze@v3
+
+      - name: Upload ESLint report (if generated)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-report
+          path: eslint-report.html
+          if-no-files-found: ignore

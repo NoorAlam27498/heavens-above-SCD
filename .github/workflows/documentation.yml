@@ -1,43 +1,60 @@
-name: Publish docs to GitHub Pages
+name: Documentation Deployment (GitHub Pages)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
     paths:
-      - 'public/**'
+      - "docs/**"
+      - "README.md"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
-  build-and-deploy:
+  build-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Use Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: "20"
 
-      - name: Install deps
-        run: npm ci
+     
 
-      - name: Ensure public exists
+      - name: Build documentation
         run: |
-          if [ -f run.js ]; then node run.js || true; fi
-          ls -la public || true
+          mkdir -p site
+          echo "<html><body><h1>Heavens Above Project Docs</h1>" > site/index.html
+          if [ -d "docs" ]; then
+            echo "<h2>Documentation Files</h2><ul>" >> site/index.html
+            for file in docs/*.md; do
+              echo "<li><a href='$file'>$(basename $file)</a></li>" >> site/index.html
+            done
+            echo "</ul>" >> site/index.html
+          else
+            echo "<p>No docs folder found — showing README.md content.</p>" >> site/index.html
+            cat README.md >> site/index.html
+          fi
+          echo "</body></html>" >> site/index.html
 
-      - name: Upload pages artifact
-        uses: actions/upload-pages-artifact@v1
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          path: ./public
+          path: site
 
-  deploy:
-    needs: build-and-deploy
+  deploy-docs:
+    needs: build-docs
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v1
-s
+        id: deployment
+        uses: actions/deploy-pages@v4

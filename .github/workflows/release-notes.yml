@@ -1,21 +1,52 @@
-name: Draft Release Notes
+name: Generate Release Notes
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  release:
+    types: [published]
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: read
+
 jobs:
-  release_notes:
+  generate-notes:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Generate release notes
-        uses: release-drafter/release-drafter@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          version: ${{ github.ref_name }}
+          node-version: "20"
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          echo "Generating release notes..."
+          # Collect commit messages since last release
+          git fetch --tags
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          CURRENT_TAG=$(git describe --tags --abbrev=0)
+          echo "Previous tag: $PREV_TAG"
+          echo "Current tag: $CURRENT_TAG"
+          echo "## Release Notes for $CURRENT_TAG" > RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          git log $PREV_TAG..$CURRENT_TAG --pretty=format:"- %s (%an)" >> RELEASE_NOTES.md || echo "- Initial release" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+
+      - name: Commit and push release notes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add RELEASE_NOTES.md
+          git commit -m "Update release notes for ${{ github.event.release.tag_name }}" || echo "No changes to commit"
+          git push
+
+      - name: Upload release notes to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
