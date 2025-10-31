@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+const crypto = require("crypto");
 
 function getTimestamp(time) {
 	const arr = time.split(":");
@@ -84,7 +84,7 @@ function iridium_options(target) {
 }
 
 function md5(str) {
-	return crypto.createHash('md5').update(str).digest('hex');
+	return crypto.createHash("md5").update(str).digest("hex");
 }
 
 module.exports = {
